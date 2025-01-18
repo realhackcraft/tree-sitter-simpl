@@ -20,7 +20,8 @@ module.exports = grammar({
         $.print_statement,
         $.return_statement,
         $.if_statement,
-        $.fn_call,
+        $.fn_call_statement,
+        $.method_call_statement,
         $.scope,
         $.while_loop,
       ),
@@ -32,8 +33,8 @@ module.exports = grammar({
         "fn",
         $.identifier,
         "(",
-        repeat(seq($.typed_indentifier, ",")),
-        optional($.typed_indentifier),
+        repeat(seq($.typed_identifier, ",")),
+        optional($.typed_identifier),
         ")",
         optional($.return_type),
         $.scope,
@@ -42,7 +43,7 @@ module.exports = grammar({
     // NOTE: rep seq exp + , is for the first few options,
     //       opt exp is for 1 or zero options
     //       rep can also be zero
-    fn_call: ($) =>
+    fn_call_statement: ($) =>
       seq(
         $.identifier,
         "(",
@@ -52,6 +53,18 @@ module.exports = grammar({
         ";",
       ),
 
+    fn_call: ($) =>
+      seq(
+        $.identifier,
+        "(",
+        repeat(seq($.expression, ",")),
+        optional($.expression),
+        ")",
+      ),
+
+    method_call: ($) => seq($.identifier, ".", $.fn_call),
+    method_call_statement: ($) => seq($.identifier, ".", $.fn_call, ";"),
+
     assign_statement: ($) => seq($.identifier, "=", $.expression, ";"),
     print_statement: ($) => seq("print", $.expression, ";"),
 
@@ -59,13 +72,25 @@ module.exports = grammar({
     return_type: ($) => seq("->", $.type),
 
     expression: ($) =>
-      choice($.number, $.boolean, $.identifier, $.operation, $.scope),
+      choice(
+        $.number,
+        $.string,
+        $.boolean,
+        $.array,
+        $.identifier,
+        $.fn_call,
+        $.method_call,
+        $.operation,
+        $.scope,
+      ),
 
     scope: ($) => seq("{", repeat($.statement), "}"),
 
     if_statement: ($) => seq("if", "(", $.expression, ")", $.scope),
 
     while_loop: ($) => seq("while", "(", $.expression, ")", $.scope),
+    batch_loop: ($) =>
+      seq("batch", "(", $.identifier, "of", $.expression, ")", $.scope),
     operation: ($) =>
       choice(
         $.addition,
@@ -128,9 +153,25 @@ module.exports = grammar({
 
     type: () => /[a-zA-Z_][a-zA-Z0-9_]*/,
 
-    typed_indentifier: ($) => seq($.identifier, ":", $.type),
+    typed_identifier: ($) => seq($.identifier, ":", $.type),
 
     number: () => seq(/\d+/, optional(seq(".", /\d+/))),
-    //number: () => /\d+/,
+    //
+    // inspiration from https://github.com/tree-sitter/tree-sitter-rust/blob/master/grammar.js
+    string: ($) => seq('"', repeat($.string_content), '"'),
+    string_content: ($) =>
+      //choice(
+      /[^"\\]/, // Any character except " and \
+    //$.escape_sequence, // Escape sequences
+    //),
+    //  escape_sequence: ($) =>
+    //    token(
+    //      seq(
+    //        "\\",
+    //        /["\\]/, // Escape quotes and backslases
+    //      ),
+    //    ),
+    array: ($) =>
+      seq("[", repeat(seq($.expression, ",")), optional($.expression), "]"),
   },
 });
